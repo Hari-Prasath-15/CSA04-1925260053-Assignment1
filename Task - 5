@@ -1,0 +1,57 @@
+#include <fcntl.h>
+#include <unistd.h>
+#include <stdio.h>
+#include <string.h>
+
+int main(void) {
+    const char *filename = "patient_record.txt";
+    const char *record_data = "PatientID: 1042 | Bed: 12 | HeartRate: 78 bpm | Status: Normal\n";
+    char buffer[128];
+    int fd;
+    ssize_t bytes_written, bytes_read;
+
+    fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    if (fd == -1) {
+        perror("Error opening file for writing");
+        return 1;
+    }
+
+    bytes_written = write(fd, record_data, strlen(record_data));
+    if (bytes_written == -1) {
+        perror("Error writing patient record");
+        close(fd);
+        return 1;
+    }
+
+    if (close(fd) == -1) {
+        perror("Error closing file after write");
+        return 1;
+    }
+
+    fd = open(filename, O_RDONLY);
+    if (fd == -1) {
+        perror("Error opening file for reading");
+        return 1;
+    }
+
+    bytes_read = read(fd, buffer, sizeof(buffer) - 1);
+    if (bytes_read == -1) {
+        perror("Error reading patient record");
+        close(fd);
+        return 1;
+    }
+    buffer[bytes_read] = '\0';
+
+    if (write(STDOUT_FILENO, buffer, bytes_read) == -1) {
+        perror("Error writing to standard output");
+        close(fd);
+        return 1;
+    }
+
+    if (close(fd) == -1) {
+        perror("Error closing file after read");
+        return 1;
+    }
+
+    return 0;
+}

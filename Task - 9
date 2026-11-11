@@ -1,0 +1,38 @@
+#define _POSIX_C_SOURCE 200809L
+#include <stdio.h>
+#include <stdint.h>
+
+int main(void)
+{
+    const uint64_t mri_bytes_dec = 500ULL * 1000ULL * 1000ULL; /* 500 MB */
+    const uint64_t mri_bytes_bin = 500ULL * 1024ULL * 1024ULL; /* 500 MiB */
+    const double isr_time_us = 1.0;                            /* 1 us per interrupt */
+
+    uint64_t irq_32bit_dec = mri_bytes_dec / 4;
+    uint64_t irq_64bit_dec = mri_bytes_dec / 8;
+    uint64_t irq_32bit_bin = mri_bytes_bin / 4;
+
+    printf("=== MRI 500 MB Transfer: Interrupt-Driven I/O vs. DMA ===\n");
+    printf("Interrupt-Driven (4-byte word, 500 MB):  %llu interrupts | CPU time: %.2f s\n",
+           (unsigned long long)irq_32bit_dec, (irq_32bit_dec * isr_time_us) / 1e6);
+    printf("Interrupt-Driven (8-byte word, 500 MB):  %llu interrupts | CPU time: %.2f s\n",
+           (unsigned long long)irq_64bit_dec, (irq_64bit_dec * isr_time_us) / 1e6);
+    printf("Interrupt-Driven (4-byte word, 500 MiB): %llu interrupts | CPU time: %.2f s\n",
+           (unsigned long long)irq_32bit_bin, (irq_32bit_bin * isr_time_us) / 1e6);
+    printf("DMA Transfer (500 MB block):             1 completion IRQ | CPU time: ~0.000003 s\n\n");
+
+    /* Effective Access Time (EAT) for Patient Record Lookup */
+    double t_ram_us = 0.1;     /* 100 ns DRAM cache */
+    double t_ssd_us = 100.0;   /* 100 us NVMe SSD */
+    double t_hdd_us = 10000.0; /* 10 ms HDD */
+    double hit_ratio = 0.95;
+
+    double eat_ssd = hit_ratio * t_ram_us + (1.0 - hit_ratio) * (t_ram_us + t_ssd_us);
+    double eat_hdd = hit_ratio * t_ram_us + (1.0 - hit_ratio) * (t_ram_us + t_hdd_us);
+
+    printf("=== Patient-Record Lookup Effective Access Time (95%% RAM Hit Ratio) ===\n");
+    printf("Uncached SSD: %.1f us -> Cached (DRAM + SSD): %.2f us\n", t_ssd_us, eat_ssd);
+    printf("Uncached HDD: %.1f us -> Cached (DRAM + HDD): %.2f us\n", t_hdd_us, eat_hdd);
+
+    return 0;
+}

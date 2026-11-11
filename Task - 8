@@ -1,0 +1,41 @@
+#define _POSIX_C_SOURCE 200809L
+#include <stdio.h>
+#include <signal.h>
+#include <unistd.h>
+
+volatile sig_atomic_t irq_alarm_triggered = 0;
+
+/* Simulated Interrupt Service Routine (ISR) using POSIX signal SIGUSR1 */
+void sensor_interrupt_handler(int sig)
+{
+    (void)sig;
+    irq_alarm_triggered = 1;
+}
+
+int main(void)
+{
+    /* 1. Polling simulation: sensor becomes abnormal on check #5000 */
+    long poll_checks = 0;
+    int abnormal_step = 5000;
+    for (int step = 1; step <= abnormal_step; step++) {
+        poll_checks++;
+        if (step == abnormal_step) {
+            printf("[Polling] Abnormal reading detected after %ld register checks "
+                   "(%ld wasted checks).\n", poll_checks, poll_checks - 1);
+        }
+    }
+
+    /* 2. Interrupt-driven simulation: CPU wakes up only when event arrives */
+    signal(SIGUSR1, sensor_interrupt_handler);
+    long isr_invocations = 0;
+
+    /* Simulate hardware sensor raising an interrupt */
+    raise(SIGUSR1);
+    if (irq_alarm_triggered) {
+        isr_invocations++;
+        printf("[Interrupt] Abnormal reading handled in %ld ISR invocation "
+               "(0 wasted polling checks).\n", isr_invocations);
+    }
+
+    return 0;
+}

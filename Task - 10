@@ -1,0 +1,101 @@
+#define _POSIX_C_SOURCE 200809L
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/wait.h>
+#include <pthread.h>
+#include <time.h>
+
+static double elapsed_ms(struct timespec start, struct timespec end)
+{
+    return (end.tv_sec - start.tv_sec) * 1000.0 +
+           (end.tv_nsec - start.tv_nsec) / 1e6;
+}
+
+long copy_file(const char *src, const char *dst, size_t bufsize)
+{
+    char buf[8192];
+    int in = open(src, O_RDONLY);
+    if (in < 0) return -1;
+    int out = open(dst, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    if (out < 0) {
+        close(in);
+        return -1;
+    }
+    long calls = 0;
+    ssize_t n;
+    while ((calls++, n = read(in, buf, bufsize)) > 0) {
+        if (write(out, buf, (size_t)n) != n) {
+            close(in);
+            close(out);
+            return -1;
+        }
+    }
+    close(in);
+    close(out);
+    return (n < 0) ? -1 : calls;
+}
+
+void *empty_thread(void *arg)
+{
+    (void)arg;
+    return NULL;
+}
+
+int main(int argc, char *argv[])
+{
+    const char *mode = (argc > 1) ? argv[1] : "all";
+    struct timespec t0, t1;
+
+    if (strcmp(mode, "1") == 0 || strcmp(mode, "512") == 0 ||
+        strcmp(mode, "4096") == 0 || strcmp(mode, "all") == 0) {
+        FILE *f = fopen("records.dat", "w");
+        for (int i = 0; i < 10000; i++) fputc('A' + i % 26, f);
+        fclose(f);
+
+        size_t sizes[] = {1, 512, 4096};
+        for (int i = 0; i < 3; i++) {
+            char s_buf[16];
+            snprintf(s_buf, sizeof(s_buf), "%zu", sizes[i]);
+            if (strcmp(mode, "all") == 0 || strcmp(mode, s_buf) == 0) {
+                clock_gettime(CLOCK_MONOTONIC, &t0);
+                long c = copy_file("records.dat", "copy.dat", sizes[i]);
+                clock_gettime(CLOCK_MONOTONIC, &t1);
+                printf("Buffer %4zu B: %5ld read() calls | Time: %.3f ms\n",
+                       sizes[i], c, elapsed_ms(t0, t1));
+            }
+        }
+        unlink("records.dat");
+        unlink("copy.dat");
+    }
+
+    if (strcmp(mode, "fork") == 0 || strcmp(mode, "all") == 0) {
+        clock_gettime(CLOCK_MONOTONIC, &t0);
+        for (int i = 0; i < 1000; i++) {
+            pid_t pid = fork();
+            if (pid == 0) _exit(0);
+            waitpid(pid, NULL, 0);
+        }
+        clock_gettime(CLOCK_MONOTONIC, &t1);
+        double dt = elapsed_ms(t0, t1);
+        printf("1,000 fork() processes:       %.3f ms total (%.2f us/process)\n",
+               dt, (dt * 1000.0) / 1000.0);
+    }
+
+    if (strcmp(mode, "threads") == 0 || strcmp(mode, "all") == 0) {
+        clock_gettime(CLOCK_MONOTONIC, &t0);
+        for (int i = 0; i < 1000; i++) {
+            pthread_t tid;
+            pthread_create(&tid, NULL, empty_thread, NULL);
+            pthread_join(tid, NULL);
+        }
+        clock_gettime(CLOCK_MONOTONIC, &t1);
+        double dt = elapsed_ms(t0, t1);
+        printf("1,000 pthread_create threads: %.3f ms total (%.2f us/thread)\n",
+               dt, (dt * 1000.0) / 1000.0);
+    }
+
+    return 0;
+}

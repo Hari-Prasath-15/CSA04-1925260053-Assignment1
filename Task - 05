@@ -16,6 +16,7 @@ int main(void) {
         return 1;
     }
 
+
     bytes_written = write(fd, record_data, strlen(record_data));
     if (bytes_written == -1) {
         perror("Error writing patient record");

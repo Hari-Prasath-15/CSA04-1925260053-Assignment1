@@ -21,6 +21,7 @@ int main(void)
            (unsigned long long)irq_32bit_bin, (irq_32bit_bin * isr_time_us) / 1e6);
     printf("DMA Transfer (500 MB block):             1 completion IRQ | CPU time: ~0.000003 s\n\n");
 
+
     /* Effective Access Time (EAT) for Patient Record Lookup */
     double t_ram_us = 0.1;     /* 100 ns DRAM cache */
     double t_ssd_us = 100.0;   /* 100 us NVMe SSD */

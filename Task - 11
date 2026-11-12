@@ -1,0 +1,35 @@
+#define _POSIX_C_SOURCE 200809L
+#include <stdio.h>
+
+int main(void)
+{
+    int monitors = 500, tablets = 120, workstations = 80, servers = 2;
+    int total_vms = monitors + tablets + workstations + servers; /* 702 VMs */
+
+    /* 1. Memory overhead: bare-metal RTOS (~0.1 MB) vs full guest VM kernel (~128 MB) */
+    double rtos_kernel_mb = 0.1;
+    double vm_guest_kernel_mb = 128.0;
+    double physical_monitor_ram_mb = monitors * rtos_kernel_mb;
+    double vm_total_kernel_ram_mb = total_vms * vm_guest_kernel_mb;
+
+    /* 2. Page-table walk steps on TLB miss: 1D (d_g = 4) vs 2D EPT ((d_g + 1)*d_h + d_g) */
+    int d_g = 4, d_h = 4;
+    int bare_metal_walk_refs = d_g;
+    int nested_ept_walk_refs = (d_g + 1) * d_h + d_g;
+
+    /* 3. Fault domain blast radius (% of beds lost if 1 node fails) */
+    double physical_bed_loss_pct = (1.0 / monitors) * 100.0;
+    double two_server_vm_loss_pct = (1.0 / 2.0) * 100.0;
+
+    printf("=== Task 11: Physical Architecture vs. 2-Server VM Consolidation ===\n");
+    printf("Total workloads consolidated: %d VMs across 2 physical servers\n", total_vms);
+    printf("Monitor OS kernel RAM (500 physical RTOS units): %.1f MB\n", physical_monitor_ram_mb);
+    printf("Duplicate Guest Kernel RAM (%d VMs @ 128 MB):    %.1f MB (%.2f GB)\n",
+           total_vms, vm_total_kernel_ram_mb, vm_total_kernel_ram_mb / 1024.0);
+    printf("MMU page-table memory refs per TLB miss:         %d (Bare-Metal) vs. %d (2D EPT VM)\n",
+           bare_metal_walk_refs, nested_ept_walk_refs);
+    printf("Blast radius of 1 hardware node failure:         %.1f%% of beds (Physical) vs. %.1f%% (2-Server VM)\n",
+           physical_bed_loss_pct, two_server_vm_loss_pct);
+
+    return 0;
+}

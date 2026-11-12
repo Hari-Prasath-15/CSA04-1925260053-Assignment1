@@ -1,0 +1,53 @@
+#define _POSIX_C_SOURCE 200809L
+#include <stdio.h>
+
+typedef struct {
+    int reading_id;
+    int heart_rate;
+} VitalSample;
+
+int main(void)
+{
+    VitalSample samples[] = {
+        {1, 76}, {2, 79}, {3, 165}, {4, 82}
+    };
+    int internet_up[] = {1, 0, 0, 1}; /* Internet drops on samples 2 and 3 */
+    VitalSample flash_ring_buffer[16];
+    int buffered_count = 0;
+
+    printf("=== Task 12: Home Monitor Edge RTOS + Store-and-Forward Simulation ===\n");
+    for (int i = 0; i < 4; i++) {
+        VitalSample s = samples[i];
+
+        /* 1. Local Edge RTOS Interrupt Check (< 10 ms regardless of internet) */
+        if (s.heart_rate < 50 || s.heart_rate > 140) {
+            printf("[Sample %d | HR=%d bpm] LOCAL EDGE ALARM SOUNDED in < 1 ms (Internet=%s)\n",
+                   s.reading_id, s.heart_rate, internet_up[i] ? "UP" : "DOWN");
+        }
+
+        /* 2. Cloud Upload or Local Flash Ring Buffer Store-and-Forward */
+        if (internet_up[i]) {
+            while (buffered_count > 0) {
+                VitalSample old = flash_ring_buffer[--buffered_count];
+                printf("  -> Flushed buffered Sample %d (HR=%d) from local flash to Cloud\n",
+                       old.reading_id, old.heart_rate);
+            }
+            printf("  -> Uploaded Sample %d (HR=%d) to Shared Hospital Cloud via mTLS\n",
+                   s.reading_id, s.heart_rate);
+        } else {
+            flash_ring_buffer[buffered_count++] = s;
+            printf("  -> Internet DOWN: Stored Sample %d (HR=%d) in local flash ring buffer\n",
+                   s.reading_id, s.heart_rate);
+        }
+    }
+
+    /* 3. Hybrid Cloud-Edge Record Lookup EAT Comparison */
+    double t_dram_us = 0.1, t_ssd_us = 100.0, t_wan_cloud_us = 50000.0;
+    double eat_hybrid_local = 0.95 * t_dram_us + 0.05 * (t_dram_us + t_ssd_us);
+    printf("\n=== Patient Record Lookup Latency ===\n");
+    printf("Pure Cloud-Only Lookup (50 ms WAN):        %.1f us\n", t_wan_cloud_us);
+    printf("Hybrid Cloud-Edge Local Cache (95%% hit):   %.2f us (%.0fx faster)\n",
+           eat_hybrid_local, t_wan_cloud_us / eat_hybrid_local);
+
+    return 0;
+}
